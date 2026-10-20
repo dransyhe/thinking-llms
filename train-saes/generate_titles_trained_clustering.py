@@ -97,8 +97,21 @@ parser.add_argument("--n_trace_examples", type=int, default=3,
                     help="Number of full reasoning trace examples to include in prompts")
 parser.add_argument("--n_categories_examples", type=int, default=5,
                     help="Number of category examples to include in prompts")
+parser.add_argument("--algo", action="store_true", default=False,
+                    help="Label each cluster with the task-independent algorithmic operation it performs "
+                         "(build_algo_cluster_description_prompt) and write to a separate *_algo.json results file")
 
 args, _ = parser.parse_known_args()
+
+if args.algo and args.command != "direct":
+    raise ValueError("--algo is only implemented for --command direct")
+
+# --algo labels live in their own file so they never overwrite the default labels.
+RESULTS_SUFFIX = "_algo" if args.algo else ""
+
+
+def results_json_path_for(method, model_id, layer):
+    return f"results/vars/{method}_results_{model_id}_layer{layer}{RESULTS_SUFFIX}.json"
 
 
 def create_empty_results_json(clustering_method, model_id, layer, clusters):
@@ -122,7 +135,7 @@ def create_empty_results_json(clustering_method, model_id, layer, clusters):
     
     # Create the JSON file path
     model_short_name = model_id.split('/')[-1].lower()
-    results_json_path = f"{results_dir}/{clustering_method}_results_{model_short_name}_layer{layer}.json"
+    results_json_path = results_json_path_for(clustering_method, model_short_name, layer)
     
     # Create the basic structure with empty results for each cluster size
     results_data = {
@@ -237,7 +250,7 @@ def submit_description_batches():
         print_and_flush(f"\n=== Processing {method.upper()} ===")
         
         # Load existing results to get cluster sizes
-        results_json_path = f'results/vars/{method}_results_{model_id}_layer{args.layer}.json'
+        results_json_path = results_json_path_for(method, model_id, args.layer)
         if not os.path.exists(results_json_path):
             print_and_flush(f"No existing results found for {method} at {results_json_path}.")
             # Create empty results JSON if clusters are specified
@@ -292,7 +305,7 @@ def submit_description_batches():
                 cluster_size_batches = {}
 
                 # Load existing results to check which clusters need generation
-                results_json_path = f'results/vars/{method}_results_{model_id}_layer{args.layer}.json'
+                results_json_path = results_json_path_for(method, model_id, args.layer)
                 if os.path.exists(results_json_path):
                     with open(results_json_path, 'r') as f:
                         existing_results_for_check = json.load(f)
@@ -420,7 +433,7 @@ def process_description_batches():
         print_and_flush(f"\n=== Processing {method.upper()} ===")
         
         # Load existing results
-        results_json_path = f'results/vars/{method}_results_{model_id}_layer{args.layer}.json'
+        results_json_path = results_json_path_for(method, model_id, args.layer)
         if not os.path.exists(results_json_path):
             print_and_flush(f"No existing results found for {method} at {results_json_path}.")
             # Create empty results JSON if clusters are specified
@@ -555,7 +568,7 @@ def generate_descriptions_direct():
         print_and_flush(f"\n=== Processing {method.upper()} ===")
         
         # Load existing results to get cluster sizes
-        results_json_path = f'results/vars/{method}_results_{model_id}_layer{args.layer}.json'
+        results_json_path = results_json_path_for(method, model_id, args.layer)
         if not os.path.exists(results_json_path):
             print_and_flush(f"No existing results found for {method} at {results_json_path}.")
             # Create empty results JSON if clusters are specified
@@ -642,7 +655,8 @@ def generate_descriptions_direct():
                         cluster_examples_list,
                         args.evaluator_model,
                         n_trace_examples=args.n_trace_examples,
-                        n_categories_examples=args.n_categories_examples
+                        n_categories_examples=args.n_categories_examples,
+                        algo=args.algo
                     )
 
                     print_and_flush(f"  Generated descriptions for {len(new_categories)} clusters:")

@@ -88,6 +88,22 @@ categories_examples = [
 ]
 
 
+def build_category_examples_text(n_categories_examples=5):
+    """Format the first n_categories_examples entries of categories_examples as prompt guidance ("" if none)."""
+    selected_examples = categories_examples[:n_categories_examples] if n_categories_examples > 0 else []
+    if not selected_examples:
+        return ""
+    category_examples_text = "Here are some example categories to help guide your analysis:\n\n"
+    for i, category in enumerate(selected_examples):
+        category_examples_text += f"**Example Category {i+1}: {category['title']}**\n"
+        category_examples_text += f"Description: {category['description']}\n"
+        category_examples_text += "Examples:\n"
+        for example in category['examples']:
+            category_examples_text += f"- {example}\n"
+        category_examples_text += "\n"
+    return category_examples_text
+
+
 def build_cluster_description_prompt(examples, trace_examples_text="", n_categories_examples=5):
     """
     Build a prompt for generating cluster descriptions.
@@ -119,22 +135,9 @@ Look for:
 - Common linguistic patterns or structures
 - Functional role within the overall reasoning process"""
 
-    # Build category examples text if requested
-    if n_categories_examples > 0:
-        # Select up to n_categories_examples from the categories_examples list
-        selected_examples = categories_examples[:n_categories_examples]
-        
-        if selected_examples:
-            category_examples_text = "Here are some example categories to help guide your analysis:\n\n"
-            for i, category in enumerate(selected_examples):
-                category_examples_text += f"**Example Category {i+1}: {category['title']}**\n"
-                category_examples_text += f"Description: {category['description']}\n"
-                category_examples_text += "Examples:\n"
-                for example in category['examples']:
-                    category_examples_text += f"- {example}\n"
-                category_examples_text += "\n"
-            
-            prompt += f"\n\n{category_examples_text}"
+    category_examples_text = build_category_examples_text(n_categories_examples)
+    if category_examples_text:
+        prompt += f"\n\n{category_examples_text}"
 
     prompt += """
 
@@ -156,6 +159,67 @@ Guidelines for descriptions:
 In summary, the description should be as sharp and specific as possible, and the title should be as simple and abstractq as possible.
 """
     
+    return prompt
+
+
+def build_algo_cluster_description_prompt(examples, trace_examples_text="", n_categories_examples=5):
+    """
+    Variant of build_cluster_description_prompt that asks for the task-independent algorithmic
+    operation a cluster performs, rather than its cognitive function, and tells the labeller to
+    ignore shared topic, formatting, or phrasing (titles become "No Shared Operation" otherwise).
+    Same arguments and response format (Title:/Description:) as build_cluster_description_prompt.
+    """
+    prompt = f"""Analyze the following {len(examples)} sentences from an LLM reasoning trace.
+These sentences are grouped into a cluster based on their similar
+role or function in the reasoning process.
+
+Your task is to identify the precise algorithmic operation these
+sentences perform in the reasoning process: a reusable step that
+could appear in any task, regardless of topic or wording. Consider
+what information the step uses and what it produces."""
+
+    if trace_examples_text:
+        prompt += f"\n\n{trace_examples_text}"
+
+    prompt += f"""
+
+Sentences:
+'''
+{chr(10).join([f"- {example}" for example in examples])}
+'''
+
+Look for:
+- A shared operation: what the step does with the information it uses
+- The same operation appearing across different topics or wordings
+- Functional role within the overall reasoning process
+
+Ignore what the sentences share only in topic, formatting, or
+phrasing. If they share no common operation, say so."""
+
+    category_examples_text = build_category_examples_text(n_categories_examples)
+    if category_examples_text:
+        prompt += f"\n\n{category_examples_text}"
+
+    prompt += """
+Your response should be in this exact format:
+Title: [crisp, single-concept title without slashes, parentheses, or compound phrases]
+Description: [3-4 sentences explaining (1) the specific operation this cluster represents, including what it uses and what it produces, (2) what is INCLUDED in this category, (3) what is NOT INCLUDED in this category]
+
+Guidelines for titles:
+- Use simple, clear verb phrases that name an operation
+- Avoid slashes (/) and parentheses ()
+- Avoid subject-area words (e.g., legal, physics, psychological)
+- Capture one core operation
+- If there is no shared operation, use the title "No Shared Operation"
+
+Guidelines for descriptions:
+- Focus on the specific operation, stated so it applies to any task
+- Stay grounded in what the examples actually do
+- Mention common phrases or words only as cues, not as the definition
+- Be precise enough that someone could reliably identify new
+  examples of this operation, including in other tasks.
+"""
+
     return prompt
 
 

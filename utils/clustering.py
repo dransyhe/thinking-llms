@@ -15,6 +15,7 @@ from tqdm import tqdm
 from utils.utils import print_and_flush, chat_batch, convert_numpy_types, NumpyEncoder
 from utils.autograder_prompts import (
     build_cluster_description_prompt,
+    build_algo_cluster_description_prompt,
     build_accuracy_autograder_prompt,
     build_semantic_orthogonality_prompt,
     build_completeness_autograder_prompt,
@@ -432,7 +433,7 @@ def get_latent_descriptions(model_id, layer, n_clusters, clustering_method='sae_
     
     return {}
 
-def generate_cluster_descriptions(model_name, cluster_examples_list, evaluator_model, n_trace_examples=3, n_categories_examples=5):
+def generate_cluster_descriptions(model_name, cluster_examples_list, evaluator_model, n_trace_examples=3, n_categories_examples=5, algo=False):
     """
     Generate descriptions for multiple clusters in batch.
     
@@ -481,7 +482,9 @@ def generate_cluster_descriptions(model_name, cluster_examples_list, evaluator_m
     
     for cluster_idx, examples in cluster_examples_list:
         # Create a prompt for this cluster using the centralized prompt builder
-        prompt = build_cluster_description_prompt(
+        # (algo=True asks for the task-independent operation instead of the cognitive function)
+        prompt_builder = build_algo_cluster_description_prompt if algo else build_cluster_description_prompt
+        prompt = prompt_builder(
             examples, 
             trace_examples_text, 
             n_categories_examples
