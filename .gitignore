@@ -48,3 +48,14 @@ slurm_jobs/
 *.out
 *.log
 *.err
+
+# --- SAE pipeline outputs (multi-GB, regenerable) ---
+activations/
+checkpoints/
+logs/
+*.pt
+*.safetensors
+src/test/reports/
+data/*_programs.jsonl
+data/*_ground_truth.jsonl
+results/
