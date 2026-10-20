@@ -489,3 +489,14 @@ def test_extract_thinking_process_deepseek_r1_distill_qwen_14b_qid_7070():
     thinking = extract_thinking_process(FULL_RESPONSE_QWEN14B_QID_7070)
     assert isinstance(thinking, str)
     assert thinking.strip() != ""
+
+
+# --- Qwen3-4B-Instruct-2507 (non-thinking ChatML model: no <think> tags, vLLM response includes the prompt) ---
+FULL_RESPONSE_QWEN3_INSTRUCT = (
+    "<|im_start|>user\nWhat is 2+2? Explain briefly.<|im_end|>\n<|im_start|>assistant\n"
+    "To add 2 and 2, count up two from 2. The result is 4.\n\nThe answer is (B)."
+)
+
+def test_extract_thinking_process_chatml_without_think_tags_skips_the_prompt():
+    thinking = extract_thinking_process(FULL_RESPONSE_QWEN3_INSTRUCT)
+    assert thinking == "To add 2 and 2, count up two from 2. The result is 4.\n\nThe answer is (B)."

@@ -10,7 +10,8 @@ def extract_thinking_process(response):
     main reasoning, then return text up to the next `</think>` (or end of text).
 
     Selection policy (as requested):
-    - If there's **no** `<think>`, start at 0.
+    - If there's **no** `<think>`, start right after the last ChatML assistant header
+      (`<|im_start|>assistant\n`) if present, else at 0.
     - If there's **exactly one** `<think>`, start right after it.
     - If there are **multiple** `<think>`:
       - Look for occurrences of the Open-Reasoner-Zero marker `"Assistant: <think>"`.
@@ -23,12 +24,17 @@ def extract_thinking_process(response):
     think_tag = "<think>"
     end_tag = "</think>"
     orz_marker = "Assistant: <think>"
+    chatml_assistant_marker = "<|im_start|>assistant\n"
 
     n_think = response.count(think_tag)
 
-    # 1) No <think>: treat the entire string as "thinking-like" content.
+    # 1) No <think>: treat the assistant turn as "thinking-like" content. Non-thinking
+    #    chat models (e.g. Qwen3-*-Instruct-2507) emit no tags, and the vLLM response
+    #    string starts with the chat-templated prompt, so skip past the last assistant
+    #    header when there is one; otherwise use the entire string.
     if n_think == 0:
-        think_start = 0
+        assistant_start = response.rfind(chatml_assistant_marker)
+        think_start = 0 if assistant_start == -1 else assistant_start + len(chatml_assistant_marker)
 
     # 2) Exactly one <think>: take the only block.
     elif n_think == 1:
