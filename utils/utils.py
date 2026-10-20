@@ -175,9 +175,16 @@ async def chat_batch(prompts, model="gpt-4.1", max_tokens=28000, max_concurrent_
     Returns:
         list: List of responses corresponding to the prompts
     """
+    # LOCAL_LLM_BASE_URL points every request at a self-hosted OpenAI-compatible server
+    # (e.g. `vllm serve`), which must serve `model` under that exact name.
+    local_base_url = os.getenv("LOCAL_LLM_BASE_URL")
     temperature = 1e-19
     if model.startswith("o3") or model.startswith("o4"):
         temperature = 1
+    elif local_base_url:
+        # Qwen3 thinking models degenerate into repetition under greedy decoding; 0.6 is the
+        # model card's setting (top_p/top_k come from the server's generation config).
+        temperature = 0.6
 
     # Create chat completion requests
     # Newer OpenAI models (gpt-5.x, o3, o4) require max_completion_tokens instead of max_tokens
@@ -218,7 +225,14 @@ async def chat_batch(prompts, model="gpt-4.1", max_tokens=28000, max_concurrent_
         )
     
     # Process batch with increased timeout for reliability
-    async with ChatLimiter.for_model(model, timeout=240.0) as limiter:
+    if local_base_url:
+        limiter_ctx = ChatLimiter.for_model(
+            model, provider="openai", api_key="EMPTY", base_url=local_base_url,
+            request_limit=1_000_000, token_limit=1_000_000_000, timeout=3600.0,
+        )
+    else:
+        limiter_ctx = ChatLimiter.for_model(model, timeout=240.0)
+    async with limiter_ctx as limiter:
         results = await process_chat_completion_batch(limiter, requests, config)
     
     # Extract responses and handle errors
@@ -230,6 +244,11 @@ async def chat_batch(prompts, model="gpt-4.1", max_tokens=28000, max_concurrent_
             response = result.result
             if hasattr(response, 'choices') and response.choices:
                 content = response.choices[0].message.content
+                if content is None:
+                    # A reasoning model that never closes its thinking (e.g. hits max_tokens) returns
+                    # no content; "" lets callers fall back to their placeholder/parse-error handling.
+                    print(f"Batch request {i} returned no content (finish_reason={response.choices[0].finish_reason})")
+                    content = ""
                 # Handle thinking models that might have reasoning
                 if hasattr(response.choices[0].message, 'reasoning') and response.choices[0].message.reasoning:
                     thinking_response = response.choices[0].message.reasoning
@@ -239,7 +258,9 @@ async def chat_batch(prompts, model="gpt-4.1", max_tokens=28000, max_concurrent_
             else:
                 responses.append(str(response))
         else:
+            # Keep responses aligned with prompts: callers pair responses[i] with prompts[i].
             print(f"Batch request {i} failed: {result.error_message}")
+            responses.append("")
     
     return responses
 

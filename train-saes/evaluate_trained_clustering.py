@@ -614,7 +614,8 @@ def evaluate_clustering_direct():
                     no_sem_orth=args.no_sem_orth,
                     no_orth=args.no_orth,
                     existing_results=existing_results,
-                    target_cluster_percentage=args.accuracy_target_cluster_percentage
+                    target_cluster_percentage=args.accuracy_target_cluster_percentage,
+                    evaluator_model=args.evaluator_model
                 )
                 
                 eval_results_by_cluster_size[cluster_size] = evaluation_results

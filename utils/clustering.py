@@ -1331,7 +1331,7 @@ def evaluate_clustering_scoring_metrics(
     model_name, n_autograder_examples, n_description_examples, existing_categories, 
     repetitions=3, model_id=None, layer=None, clustering_data=None,
     no_accuracy=False, no_completeness=False, no_sem_orth=False, no_orth=False, existing_results=None,
-    target_cluster_percentage=0.2
+    target_cluster_percentage=0.2, evaluator_model="gpt-4.1-mini"
 ):
     """
     Evaluate clustering using both accuracy and optionally completeness autograders.
@@ -1415,7 +1415,7 @@ def evaluate_clustering_scoring_metrics(
         # Run binary accuracy autograder (evaluates each cluster independently)
         if not no_accuracy:
             accuracy_results = evaluate_clustering_accuracy(
-                texts, cluster_labels, categories, "gpt-4.1-mini", n_autograder_examples, target_cluster_percentage=target_cluster_percentage
+                texts, cluster_labels, categories, evaluator_model, n_autograder_examples, target_cluster_percentage=target_cluster_percentage
             )
             rep_results["avg_accuracy"] = accuracy_results["avg"]["accuracy"]
             rep_results["avg_f1"] = accuracy_results["avg"]["f1"]
@@ -1438,7 +1438,7 @@ def evaluate_clustering_scoring_metrics(
         
         # Compute semantic orthogonality
         if not no_sem_orth:
-            semantic_orthogonality_results = compute_semantic_orthogonality(categories, "gpt-4.1-mini", 0.5)
+            semantic_orthogonality_results = compute_semantic_orthogonality(categories, evaluator_model, 0.5)
             rep_results["semantic_orthogonality_matrix"] = semantic_orthogonality_results["semantic_orthogonality_matrix"]
             rep_results["semantic_orthogonality_explanations"] = semantic_orthogonality_results["semantic_orthogonality_explanations"]
             rep_results["semantic_orthogonality_score"] = semantic_orthogonality_results["semantic_orthogonality_score"]
@@ -1451,7 +1451,7 @@ def evaluate_clustering_scoring_metrics(
         # Run completeness autograder
         if not no_completeness:
             str_cluster_labels = [str(label) for label in cluster_labels]
-            completeness_results = evaluate_clustering_completeness(texts, categories, "gpt-4.1-mini", 200, str_cluster_labels)
+            completeness_results = evaluate_clustering_completeness(texts, categories, evaluator_model, 200, str_cluster_labels)
             rep_results["avg_fit_score"] = completeness_results["avg_fit_score"]
             rep_results["avg_fit_score_by_cluster_id"] = completeness_results["avg_fit_score_by_cluster_id"]
             rep_results["completeness_responses"] = completeness_results["responses"]
