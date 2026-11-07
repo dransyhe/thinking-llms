@@ -175,15 +175,19 @@ def create_empty_results_json(clustering_method, model_id, layer, training_resul
     model_short_name = utils.artifact_id(model_id, dataset_tag)
     results_json_path = f"{results_dir}/{clustering_method}_results_{model_short_name}_layer{layer}.json"
     
-    # Create the basic structure with empty results for each cluster size
-    results_data = {
+    # Keep the labels/evaluations of cluster sizes not retrained in this run, so sizes can be
+    # trained and labelled one at a time
+    results_data = {"results_by_cluster_size": {}}
+    if os.path.exists(results_json_path):
+        with open(results_json_path) as f:
+            results_data = json.load(f)
+    results_data.update({
         "clustering_method": clustering_method,
         "model_id": model_id,
         "layer": layer,
-        "results_by_cluster_size": {}
-    }
-    
-    # Add empty results for each cluster size that was trained
+    })
+
+    # Reset the results of each cluster size that was trained
     for cluster_size, training_info in training_results.items():
         results_data["results_by_cluster_size"][str(cluster_size)] = {
             "all_results": [],  # Empty list to be filled by title generation script

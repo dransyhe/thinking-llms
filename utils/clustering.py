@@ -16,6 +16,7 @@ from utils.utils import print_and_flush, chat_batch, convert_numpy_types, NumpyE
 from utils.autograder_prompts import (
     build_cluster_description_prompt,
     build_algo_cluster_description_prompt,
+    build_algo_trace_examples_text,
     build_accuracy_autograder_prompt,
     build_semantic_orthogonality_prompt,
     build_completeness_autograder_prompt,
@@ -109,6 +110,12 @@ def parse_json_response(response, expected_field=None):
         elif expected_field == 'classifications':
             json_match = re.search(r'{\s*"classifications":\s*\[[\s\S]*?\]\s*}', response)
         else:
+            start = response.find('{')
+            if start >= 0:
+                try:
+                    return json.JSONDecoder().raw_decode(response[start:])[0]
+                except json.JSONDecodeError:
+                    pass
             # Generic JSON object pattern
             json_match = re.search(r'{\s*"[^"]*":\s*[\s\S]*?\}', response)
         
@@ -458,17 +465,28 @@ def generate_cluster_descriptions(model_name, cluster_examples_list, evaluator_m
             with open(responses_json_path, 'r') as f:
                 responses_data = json.load(f)
             
-            # Select random examples
-            trace_samples = random.sample(responses_data, min(n_trace_examples, len(responses_data)))
+            if algo:
+                # One solution from each of n_trace_examples different algorithms, shown with its problem
+                by_category = {}
+                for sample in responses_data:
+                    by_category.setdefault(sample.get("category"), []).append(sample)
+                categories = random.sample(sorted(by_category, key=str), min(n_trace_examples, len(by_category)))
+                trace_samples = [random.choice(by_category[c]) for c in categories]
+            else:
+                # Select random examples
+                trace_samples = random.sample(responses_data, min(n_trace_examples, len(responses_data)))
             
             # Extract thinking processes
             trace_examples = []
             for sample in trace_samples:
                 thinking_process = extract_thinking_process(sample["full_response"])
                 if thinking_process:
-                    trace_examples.append(thinking_process)
+                    trace_examples.append((sample.get("category"), sample.get("question", ""), thinking_process))
             
-            if trace_examples:
+            if trace_examples and algo:
+                trace_examples_text = build_algo_trace_examples_text(trace_examples)
+            elif trace_examples:
+                trace_examples = [trace for _, _, trace in trace_examples]
                 trace_examples_text = "Here are some full reasoning traces to help understand the context:\n'''\n"
                 for i, trace in enumerate(trace_examples):
                     trace_examples_text += f"TRACE {i+1}:\n{trace}\n\n"

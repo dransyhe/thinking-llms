@@ -102,6 +102,11 @@ parser.add_argument("--n_categories_examples", type=int, default=5,
 parser.add_argument("--algo", action="store_true", default=False,
                     help="Label each cluster with the task-independent algorithmic operation it performs "
                          "(build_algo_cluster_description_prompt) and write to a separate *_algo.json results file")
+parser.add_argument("--top_examples_only", action="store_true", default=False,
+                    help="Show only the description_examples // 2 most strongly activating sentences of each cluster, "
+                         "instead of those plus as many sampled at random from the rest of the cluster")
+parser.add_argument("--results_tag", type=str, default="",
+                    help="Appended to the results file name (e.g. a timestamp), so a run writes its own file")
 
 args, _ = parser.parse_known_args()
 
@@ -109,7 +114,7 @@ if args.algo and args.command != "direct":
     raise ValueError("--algo is only implemented for --command direct")
 
 # --algo labels live in their own file so they never overwrite the default labels.
-RESULTS_SUFFIX = "_algo" if args.algo else ""
+RESULTS_SUFFIX = ("_algo" if args.algo else "") + args.results_tag
 
 
 def results_json_path_for(method, model_id, layer):
@@ -163,6 +168,19 @@ def create_empty_results_json(clustering_method, model_id, layer, clusters, data
     return results_data
 
 
+def add_requested_cluster_sizes(existing_results, results_json_path, clusters):
+    """Add empty entries for requested cluster sizes missing from an existing results file (and save it), so
+    sizes can be labelled one at a time; the *_algo.json file is only ever created with the first size labelled."""
+    by_size = existing_results.setdefault("results_by_cluster_size", {})
+    missing = [str(size) for size in (clusters or []) if str(size) not in by_size]
+    for size in missing:
+        by_size[size] = {"all_results": [], "avg_final_score": 0.0, "statistics": {}}
+    if missing:
+        with open(results_json_path, 'w') as f:
+            json.dump(existing_results, f, indent=2)
+        print_and_flush(f"Added empty results for cluster sizes {missing} to {results_json_path}")
+
+
 def _prepare_cluster_examples(n_clusters, representative_examples, description_examples, cluster_indices=None):
     """
     Prepares a list of examples for each cluster, sampled for diversity.
@@ -187,7 +205,13 @@ def _prepare_cluster_examples(n_clusters, representative_examples, description_e
         cluster_examples = representative_examples[cluster_idx]
         total_examples = len(cluster_examples)
 
-        if total_examples <= description_examples:
+        if args.top_examples_only:
+            # Only the half that the default mix takes from the top, without the random half
+            examples = cluster_examples[:description_examples // 2]
+            print_and_flush(f"Top examples:")
+            for example in examples:
+                print_and_flush(f"  {example}")
+        elif total_examples <= description_examples:
             examples = cluster_examples
         else:
             # Pick half from the top, half randomly from the rest
@@ -266,6 +290,7 @@ def submit_description_batches():
         else:
             with open(results_json_path, 'r') as f:
                 existing_results = json.load(f)
+            add_requested_cluster_sizes(existing_results, results_json_path, args.clusters)
         
         clusters = list(existing_results.get("results_by_cluster_size", {}).keys())
         if not clusters:
@@ -450,6 +475,7 @@ def process_description_batches():
         else:
             with open(results_json_path, 'r') as f:
                 existing_results = json.load(f)
+            add_requested_cluster_sizes(existing_results, results_json_path, args.clusters)
         
         # Filter cluster sizes if specified
         if args.clusters is not None:
@@ -586,6 +612,7 @@ def generate_descriptions_direct():
         else:
             with open(results_json_path, 'r') as f:
                 existing_results = json.load(f)
+            add_requested_cluster_sizes(existing_results, results_json_path, args.clusters)
         
         clusters = list(existing_results.get("results_by_cluster_size", {}).keys())
         if not clusters:
