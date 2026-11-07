@@ -1,0 +1,39 @@
+seed: 0
+n_per_algorithm: 50
+float_decimals: 3
+matrix_dimension_scale: 100
+require_connected_graphs: true
+reject_duplicate_questions: true
+max_rejections: 100000
+output_jsonl: data/clrs_50per_algo.jsonl
+lengths:
+  articulation_points: [5, 6, 7, 8, 9, 10]
+  activity_selector: [5, 6, 7, 8, 9, 10]
+  bellman_ford: [5, 6, 7, 8, 9, 10]
+  bfs: [5, 6, 7, 8, 9, 10]
+  binary_search: [5, 6, 7, 8, 9, 10]
+  bridges: [5, 6, 7, 8, 9, 10]
+  bubble_sort: [5, 6, 7, 8, 9, 10]
+  dag_shortest_paths: [5, 6, 7, 8, 9, 10]
+  dfs: [5, 6, 7, 8, 9, 10]
+  dijkstra: [5, 6, 7, 8, 9, 10]
+  find_maximum_subarray_kadane: [5, 6, 7, 8, 9, 10]
+  floyd_warshall: [5, 6, 7, 8, 9, 10]
+  graham_scan: [5, 6, 7, 8, 9, 10]
+  heapsort: [5, 6, 7, 8, 9, 10]
+  insertion_sort: [5, 6, 7, 8, 9, 10]
+  jarvis_march: [5, 6, 7, 8, 9, 10]
+  kmp_matcher: [5, 6, 7, 8, 9, 10]
+  lcs_length: [5, 6, 7, 8, 9, 10]
+  matrix_chain_order: [5, 6, 7, 8, 9, 10]
+  minimum: [5, 6, 7, 8, 9, 10]
+  mst_kruskal: [5, 6, 7, 8, 9, 10]
+  mst_prim: [5, 6, 7, 8, 9, 10]
+  naive_string_matcher: [5, 6, 7, 8, 9, 10]
+  optimal_bst: [5, 6, 7, 8, 9, 10]
+  quickselect: [5, 6, 7, 8, 9, 10]
+  quicksort: [5, 6, 7, 8, 9, 10]
+  segments_intersect: [5, 6, 7, 8, 9, 10]
+  strongly_connected_components: [5, 6, 7, 8, 9, 10]
+  task_scheduling: [5, 6, 7, 8, 9, 10]
+  topological_sort: [5, 6, 7, 8, 9, 10]

@@ -33,7 +33,7 @@ environment, and otherwise fall back to `.venv`.
 | `train-vectors/`      | Category-vector training (`train_vectors.sh`, `run.sh`). |
 | `hybrid/`             | Best-of-3 selection and hybrid evaluation (`select_best_of_3.sh`, `eval_*.sh`, `run.sh`, `run_ablations.sh`). |
 | `figures/`            | Scripts that render every paper figure and table into `figures/figs/`. |
-| `data/`               | Training mix and held-out evaluation sets. |
+| `data/`               | Training mix and held-out evaluation sets; `data/clrs/` generates the CLRS-30 textual problems (`python -m data.clrs.generate --config data/clrs/config.yaml`) that `train_saes_qwen3_4b_instruct.sh` uses in place of MMLU-Pro (`DATASET=mmlu-pro` restores it). |
 | `human_eval/`         | Human agreement study for the LLM judge (annotation tool, judge samples, agreement computation). |
 | `artifacts/`          | All pipeline outputs: selected vectors and eval results (committed) plus regenerable per-run training outputs (git-ignored). |
 
