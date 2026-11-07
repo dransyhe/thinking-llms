@@ -9,8 +9,8 @@
 #SBATCH --gres=gpu:2
 #SBATCH --mem=200G
 #SBATCH --time=48:00:00
-#SBATCH --output=/scr/heyu/so-sae/logs/slurm/%x-%j.out
-#SBATCH --error=/scr/heyu/so-sae/logs/slurm/%x-%j.err
+#SBATCH --output=/scr/heyu/thinking-llms/logs/slurm/%x-%j.out
+#SBATCH --error=/scr/heyu/thinking-llms/logs/slurm/%x-%j.err
 
 # Labels and evaluates the trained Qwen3-4B-Instruct SAEs with a locally served judge instead of
 # the OpenAI API (o4-mini for titles, gpt-4.1-mini for evaluation in the paper):
@@ -24,13 +24,18 @@
 # ALGO=1 labels with the algorithmic-operation prompt (generate_titles --algo) into a separate
 # *_algo.json file and stops after labelling: evaluate_trained_clustering.py only reads the default
 # labels file, so EVALUATE=1 is rejected with ALGO=1. EVALUATE=0 skips evaluation in either mode.
+# Labels-only runs (EVALUATE=0) write a new file named with the start time, e.g. *_algo_20261105-133000.json,
+# so they never overwrite earlier labels; runs that evaluate keep the untagged file the evaluation reads.
+# TOP_ONLY=1 shows the judge only the 100 most strongly activating sentences of each cluster instead of
+# those plus 100 sampled at random from the rest (its files are marked _top, e.g. *_algo_top_<time>.json).
 #
 #   sbatch label_eval_saes_qwen3_4b_instruct.sh
 #   sbatch --export=ALL,LAYER=25,CLUSTERS="10 15" label_eval_saes_qwen3_4b_instruct.sh
 #   sbatch --export=ALL,ALGO=1,CLUSTERS="5 10 20 50" label_eval_saes_qwen3_4b_instruct.sh
+#   sbatch --export=ALL,DATASET=mmlu-pro label_eval_saes_qwen3_4b_instruct.sh   (default DATASET=clrs)
 
 set -euo pipefail
-ROOT=/scr/heyu/so-sae
+ROOT=/scr/heyu/thinking-llms
 cd "$ROOT"
 mkdir -p logs/slurm
 source .venv/bin/activate
@@ -41,35 +46,46 @@ MODEL="${MODEL:-Qwen/Qwen3-4B-Instruct-2507}"
 MODEL_ID="$(basename "$MODEL" | tr '[:upper:]' '[:lower:]')"
 JUDGE="${JUDGE:-Qwen/Qwen3-30B-A3B-Thinking-2507}"
 JUDGE_CACHE="${JUDGE_CACHE:-/scr/heyu/.cache/huggingface/hub}"
+# Prompt + the clients' 28000-token completion budget (utils.chat_batch). Title prompts carry 3 full reasoning
+# traces, so with long responses (MAX_TOKENS=16384) they reach ~35k+ tokens and 40960 rejects them.
+JUDGE_MAX_LEN="${JUDGE_MAX_LEN:-131072}"
 LAYER="${LAYER:-18}"
 N_EXAMPLES="${N_EXAMPLES:-100000}"
 REPETITIONS="${REPETITIONS:-3}"
 CLUSTERS="${CLUSTERS:-5 10 15 20 25 30 35 40 45 50}"
+source "$ROOT/dataset.sh"
 PORT="${PORT:-$(( 20000 + ${SLURM_JOB_ID:-$$} % 10000 ))}"
 ALGO="${ALGO:-0}"
 EVALUATE="${EVALUATE:-$(( ALGO == 1 ? 0 : 1 ))}"
 (( ALGO == 1 && EVALUATE == 1 )) && { echo "EVALUATE=1 is not supported with ALGO=1" >&2; exit 1; }
+TOP_ONLY="${TOP_ONLY:-0}"
 RESULTS_SUFFIX=""
 (( ALGO == 1 )) && RESULTS_SUFFIX=_algo
-RESULTS="train-saes/results/vars/sae_topk_results_${MODEL_ID}_layer${LAYER}${RESULTS_SUFFIX}.json"
+RESULTS_TAG=""
+if (( EVALUATE == 0 )); then
+  (( TOP_ONLY == 1 )) && RESULTS_TAG=_top
+  RESULTS_TAG+="_$(date +%Y%m%d-%H%M%S)"
+fi
+RESULTS="train-saes/results/vars/sae_topk_results_${ARTIFACT_ID}_layer${LAYER}${RESULTS_SUFFIX}${RESULTS_TAG}.json"
 
 IFS=, read -r -a GPUS <<< "${CUDA_VISIBLE_DEVICES:?no GPUs allocated}"
 (( ${#GPUS[@]} >= 2 )) || { echo "need 2 GPUs, got ${CUDA_VISIBLE_DEVICES}" >&2; exit 1; }
 
 for n in $CLUSTERS; do
-  ckpt="train-saes/results/vars/saes/sae_${MODEL_ID}_layer${LAYER}_clusters${n}.pt"
+  ckpt="train-saes/results/vars/saes/sae_${ARTIFACT_ID}_layer${LAYER}_clusters${n}.pt"
   [[ -f "$ckpt" ]] || { echo "missing $ckpt (run train_saes_qwen3_4b_instruct.sh first)" >&2; exit 1; }
 done
 
-echo "SAEs:     $MODEL layer $LAYER, clusters $CLUSTERS"
-echo "Judge:    $JUDGE on GPU ${GPUS[0]}, port $PORT; clients on GPU ${GPUS[1]}"
+echo "SAEs:     $MODEL on $DATASET (artifact id $ARTIFACT_ID) layer $LAYER, clusters $CLUSTERS"
+echo "Judge:    $JUDGE on GPU ${GPUS[0]} (max model len $JUDGE_MAX_LEN), port $PORT; clients on GPU ${GPUS[1]}"
 echo "Reps:     $REPETITIONS"
 echo "Prompt:   $( (( ALGO == 1 )) && echo algorithmic-operation || echo default ); evaluate: $EVALUATE"
+echo "Examples: $( (( TOP_ONLY == 1 )) && echo "top 100 per cluster" || echo "top 100 + 100 random per cluster" )"
 echo "Results:  $RESULTS"
 
-VLLM_LOG="logs/slurm/${SLURM_JOB_NAME:-label-eval}-${SLURM_JOB_ID:-local}.vllm.log"
+VLLM_LOG="logs/slurm/${SLURM_JOB_NAME:-label-eval}-${SLURM_JOB_ID:-local}-layer${LAYER}-clusters${CLUSTERS// /_}${RESULTS_SUFFIX}${RESULTS_TAG}.vllm.log"
 HF_HUB_CACHE="$JUDGE_CACHE" CUDA_VISIBLE_DEVICES="${GPUS[0]}" vllm serve "$JUDGE" \
-  --port "$PORT" --max-model-len 40960 --reasoning-parser deepseek_r1 \
+  --port "$PORT" --max-model-len "$JUDGE_MAX_LEN" --reasoning-parser deepseek_r1 \
   --gpu-memory-utilization 0.9 --max-num-seqs 256 > "$VLLM_LOG" 2>&1 &
 VLLM_PID=$!
 trap 'kill $VLLM_PID 2>/dev/null; wait $VLLM_PID 2>/dev/null' EXIT
@@ -94,12 +110,14 @@ assert "Title:" in reply, f"judge reply has no 'Title:' line: {reply!r}"
 EOF
 
 COMMON=(--model "$MODEL" --layer "$LAYER" --clusters $CLUSTERS --n_examples "$N_EXAMPLES"
-        --clustering_methods sae_topk --repetitions "$REPETITIONS" --command direct --evaluator_model "$JUDGE")
-TITLE_FLAGS=()
-(( ALGO == 1 )) && TITLE_FLAGS=(--algo)
+        --clustering_methods sae_topk --repetitions "$REPETITIONS" --command direct --evaluator_model "$JUDGE"
+        --dataset_tag "$DATASET_TAG")
+TITLE_FLAGS=(--results_tag "$RESULTS_TAG")
+(( ALGO == 1 )) && TITLE_FLAGS+=(--algo)
+(( TOP_ONLY == 1 )) && TITLE_FLAGS+=(--top_examples_only)
 
 missing_labels() {
-  python - "$RESULTS" "$REPETITIONS" "$MODEL_ID" "$LAYER" $CLUSTERS <<'EOF'
+  python - "$RESULTS" "$REPETITIONS" "$ARTIFACT_ID" "$LAYER" $CLUSTERS <<'EOF'
 import json, sys, numpy as np, torch
 path, reps, model_id, layer, sizes = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4], sys.argv[5:]
 by_size = json.load(open(path))["results_by_cluster_size"]
