@@ -18,6 +18,8 @@ from utils import utils
 parser = argparse.ArgumentParser(description="Annotate thinking processes in generated responses")
 parser.add_argument("--model", type=str, default="deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
                     help="Model used to generate responses")
+parser.add_argument("--dataset_tag", type=str, default="",
+                    help="Dataset tag appended to the model id in every artifact path (empty for MMLU-Pro)")
 parser.add_argument("--layer", type=int, default=6,
                     help="Layer to analyze")
 parser.add_argument("--n_clusters", type=int, default=15,
@@ -248,7 +250,7 @@ def process_responses(responses_file, model, tokenizer, sae, layer, output_file,
 
 # %% Get model ID from model name
 model_name = args.model
-model_id = model_name.split('/')[-1].lower()
+model_id = utils.artifact_id(model_name, args.dataset_tag)
 
 # %%  Cluster count in filename so different configs don't overwrite each other
 responses_file = f"results/vars/responses_{model_id}.json"

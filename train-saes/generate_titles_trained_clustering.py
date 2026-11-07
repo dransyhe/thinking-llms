@@ -77,6 +77,8 @@ parser.add_argument("--n_examples", type=int, default=500,
 parser.add_argument("--clustering_methods", type=str, nargs='+', 
                     default=["gmm", "pca_gmm", "spherical_kmeans", "pca_kmeans", "agglomerative", "pca_agglomerative", "sae_topk"],
                     help="Clustering methods to evaluate")
+parser.add_argument("--dataset_tag", type=str, default="",
+                    help="Dataset tag appended to the model id in every artifact path (empty for MMLU-Pro)")
 parser.add_argument("--load_in_8bit", action="store_true", default=False,
                     help="Load model in 8-bit mode")
 parser.add_argument("--description_examples", type=int, default=200,
@@ -114,7 +116,7 @@ def results_json_path_for(method, model_id, layer):
     return f"results/vars/{method}_results_{model_id}_layer{layer}{RESULTS_SUFFIX}.json"
 
 
-def create_empty_results_json(clustering_method, model_id, layer, clusters):
+def create_empty_results_json(clustering_method, model_id, layer, clusters, dataset_tag=""):
     """
     Create a JSON file with empty results structure for title generation script to use.
     
@@ -134,7 +136,7 @@ def create_empty_results_json(clustering_method, model_id, layer, clusters):
     os.makedirs(results_dir, exist_ok=True)
     
     # Create the JSON file path
-    model_short_name = model_id.split('/')[-1].lower()
+    model_short_name = utils.artifact_id(model_id, dataset_tag)
     results_json_path = results_json_path_for(clustering_method, model_short_name, layer)
     
     # Create the basic structure with empty results for each cluster size
@@ -221,7 +223,7 @@ def submit_description_batches():
     print_and_flush("=== SUBMITTING CLUSTER DESCRIPTION BATCHES ===")
     
     # Get model identifier for file naming
-    model_id = args.model.split('/')[-1].lower()
+    model_id = utils.artifact_id(args.model, args.dataset_tag)
     
     # Load model and process activations
     print_and_flush("Loading model and processing activations...")
@@ -236,7 +238,8 @@ def submit_description_batches():
         args.n_examples,
         model,
         tokenizer,
-        args.layer
+        args.layer,
+        dataset_tag=args.dataset_tag
     )
 
     del model, tokenizer
@@ -256,7 +259,7 @@ def submit_description_batches():
             # Create empty results JSON if clusters are specified
             if args.clusters is not None:
                 print_and_flush(f"Creating empty results file for {method} with cluster sizes {args.clusters}")
-                existing_results = create_empty_results_json(method, args.model, args.layer, args.clusters)
+                existing_results = create_empty_results_json(method, args.model, args.layer, args.clusters, dataset_tag=args.dataset_tag)
             else:
                 print_and_flush(f"No cluster sizes specified. Skipping {method}.")
                 continue
@@ -339,7 +342,8 @@ def submit_description_batches():
                     batch_id, cluster_indices = generate_cluster_descriptions_batch(
                         args.model, cluster_examples_list, model=args.evaluator_model,
                         n_trace_examples=args.n_trace_examples,
-                        n_categories_examples=args.n_categories_examples
+                        n_categories_examples=args.n_categories_examples,
+                        dataset_tag=args.dataset_tag
                     )
 
                     cluster_size_batches[f"rep_{rep_idx}"] = {
@@ -387,7 +391,7 @@ def process_description_batches():
     print_and_flush("=== PROCESSING CLUSTER DESCRIPTION BATCHES ===")
     
     # Get model identifier for file naming
-    model_id = args.model.split('/')[-1].lower()
+    model_id = utils.artifact_id(args.model, args.dataset_tag)
     
     # Load batch information
     if args.batch_file:
@@ -439,7 +443,7 @@ def process_description_batches():
             # Create empty results JSON if clusters are specified
             if args.clusters is not None:
                 print_and_flush(f"Creating empty results file for {method} with cluster sizes {args.clusters}")
-                existing_results = create_empty_results_json(method, args.model, args.layer, args.clusters)
+                existing_results = create_empty_results_json(method, args.model, args.layer, args.clusters, dataset_tag=args.dataset_tag)
             else:
                 print_and_flush(f"No cluster sizes specified. Skipping {method}.")
                 continue
@@ -541,7 +545,7 @@ def generate_descriptions_direct():
     print_and_flush("=== GENERATING CLUSTER DESCRIPTIONS DIRECTLY ===")
     
     # Get model identifier for file naming
-    model_id = args.model.split('/')[-1].lower()
+    model_id = utils.artifact_id(args.model, args.dataset_tag)
     
     # Load model and process activations
     print_and_flush("Loading model and processing activations...")
@@ -556,7 +560,8 @@ def generate_descriptions_direct():
         args.n_examples,
         model,
         tokenizer,
-        args.layer
+        args.layer,
+        dataset_tag=args.dataset_tag
     )
 
     del model, tokenizer
@@ -574,7 +579,7 @@ def generate_descriptions_direct():
             # Create empty results JSON if clusters are specified
             if args.clusters is not None:
                 print_and_flush(f"Creating empty results file for {method} with cluster sizes {args.clusters}")
-                existing_results = create_empty_results_json(method, args.model, args.layer, args.clusters)
+                existing_results = create_empty_results_json(method, args.model, args.layer, args.clusters, dataset_tag=args.dataset_tag)
             else:
                 print_and_flush(f"No cluster sizes specified. Skipping {method}.")
                 continue
@@ -656,7 +661,8 @@ def generate_descriptions_direct():
                         args.evaluator_model,
                         n_trace_examples=args.n_trace_examples,
                         n_categories_examples=args.n_categories_examples,
-                        algo=args.algo
+                        algo=args.algo,
+                        dataset_tag=args.dataset_tag
                     )
 
                     print_and_flush(f"  Generated descriptions for {len(new_categories)} clusters:")

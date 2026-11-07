@@ -2,6 +2,7 @@ import dotenv
 dotenv.load_dotenv("../.env")
 
 import gc
+import hashlib
 import torch
 # Lazy import: nnsight monkey-patches torch.Tensor.backward at import time,
 # which adds ~4 s/step overhead to any training loop. Only import it when
@@ -277,6 +278,23 @@ def get_char_to_token_map(text, tokenizer):
     return char_to_token
 
 
+def dataset_tag_of(dataset_file: str | None) -> str:
+    return os.path.splitext(os.path.basename(dataset_file))[0].lower() if dataset_file else ""
+
+
+def artifact_id(model_name: str, dataset_tag: str = "") -> str:
+    model_id = model_name.split('/')[-1].lower()
+    return f"{model_id}_{dataset_tag}" if dataset_tag else model_id
+
+
+def file_sha256(path: str) -> str:
+    sha = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            sha.update(chunk)
+    return sha.hexdigest()
+
+
 def _activation_cache_paths(model_id: str, n_examples: int, layer: int) -> tuple[str, str]:
     """
     Returns (activations_pkl_path, mean_pkl_path) for the given cache key.
@@ -355,7 +373,7 @@ def center_and_normalize_activations(all_activations, overall_mean):
 
     return all_activations
 
-def process_saved_responses(model_name, n_examples, model, tokenizer, layer_or_layers):
+def process_saved_responses(model_name, n_examples, model, tokenizer, layer_or_layers, dataset_tag=""):
     """Load and process saved responses to get activations"""
 
     # Ensure layer_or_layers is a list
@@ -364,7 +382,11 @@ def process_saved_responses(model_name, n_examples, model, tokenizer, layer_or_l
     else:
         layers_to_process = [int(l) for l in layer_or_layers]
 
-    model_id = model_name.split('/')[-1].lower()
+    model_id = artifact_id(model_name, dataset_tag)
+    responses_json_path = f"../generate-responses/results/vars/responses_{model_id}.json"
+    # A cache is reused only if it was built from the current responses file; without the responses
+    # file (e.g. caches copied on their own) the cache is trusted as is.
+    responses_sha256 = file_sha256(responses_json_path) if os.path.exists(responses_json_path) else None
     
     # Dictionary to store results for each layer
     results_by_layer = {}
@@ -372,12 +394,18 @@ def process_saved_responses(model_name, n_examples, model, tokenizer, layer_or_l
     # Check for cached files for each layer
     uncached_layers = []
     for layer in layers_to_process:
-        pickle_filename, _mean_filename = _activation_cache_paths(model_id=model_id, n_examples=n_examples, layer=layer)
-        if os.path.exists(pickle_filename):
+        pickle_filename, mean_filename = _activation_cache_paths(model_id=model_id, n_examples=n_examples, layer=layer)
+        cached_sha256 = None
+        if os.path.exists(mean_filename):
+            with open(mean_filename, 'rb') as f:
+                cached_sha256 = pickle.load(f).get("responses_sha256")
+        if os.path.exists(pickle_filename) and responses_sha256 in (None, cached_sha256):
             print(f"Loading cached activations for layer {layer} from {pickle_filename}...")
             with open(pickle_filename, 'rb') as f:
                 results_by_layer[layer] = pickle.load(f)
         else:
+            if os.path.exists(pickle_filename):
+                print(f"Cached activations for layer {layer} were built from other responses; rebuilding {pickle_filename}")
             uncached_layers.append(layer)
 
     if not uncached_layers:
@@ -390,7 +418,6 @@ def process_saved_responses(model_name, n_examples, model, tokenizer, layer_or_l
     print(f"Processing saved responses for layers: {uncached_layers}...")
     
     # Load responses if there are any uncached layers
-    responses_json_path = f"../generate-responses/results/vars/responses_{model_id}.json"
     print(f"Loading responses from {responses_json_path}...")
     with open(responses_json_path, 'r') as f:
         responses_data = json.load(f)
@@ -557,6 +584,7 @@ def process_saved_responses(model_name, n_examples, model, tokenizer, layer_or_l
                     "n_examples": int(n_examples),
                     "count_vectors": int(count_by_layer[layer]),
                     "activation_mean": overall_running_mean,
+                    "responses_sha256": responses_sha256,
                 },
                 f,
             )

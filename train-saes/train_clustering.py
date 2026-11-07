@@ -22,6 +22,8 @@ parser.add_argument(
     help="Model to analyze",
 )
 parser.add_argument("--layer", type=int, default=12, help="Layer to analyze")
+parser.add_argument("--dataset_tag", type=str, default="",
+                    help="Dataset tag appended to the model id in every artifact path (empty for MMLU-Pro)")
 parser.add_argument(
     "--n_examples", type=int, default=500, help="Number of examples to analyze"
 )
@@ -150,7 +152,7 @@ def run_clustering_experiment(
     return training_results_by_cluster_size
 
 
-def create_empty_results_json(clustering_method, model_id, layer, training_results):
+def create_empty_results_json(clustering_method, model_id, layer, training_results, dataset_tag=""):
     """
     Create a JSON file with empty results structure for title generation script to use.
     
@@ -170,7 +172,7 @@ def create_empty_results_json(clustering_method, model_id, layer, training_resul
     os.makedirs(results_dir, exist_ok=True)
     
     # Create the JSON file path
-    model_short_name = model_id.split('/')[-1].lower()
+    model_short_name = utils.artifact_id(model_id, dataset_tag)
     results_json_path = f"{results_dir}/{clustering_method}_results_{model_short_name}_layer{layer}.json"
     
     # Create the basic structure with empty results for each cluster size
@@ -203,11 +205,11 @@ model, tokenizer = utils.load_model(
 )
 
 # %% Get model identifier for file naming
-model_id = args.model.split("/")[-1].lower()
+model_id = utils.artifact_id(args.model, args.dataset_tag)
 
 # %% Process saved responses
 all_activations, all_texts = utils.process_saved_responses(
-    args.model, args.n_examples, model, tokenizer, args.layer
+    args.model, args.n_examples, model, tokenizer, args.layer, dataset_tag=args.dataset_tag
 )
 
 del model, tokenizer
@@ -230,7 +232,7 @@ for method in clustering_methods:
         current_results[method] = results
         
         # Create JSON file with empty results structure for title generation script
-        create_empty_results_json(method, args.model, args.layer, results)
+        create_empty_results_json(method, args.model, args.layer, results, dataset_tag=args.dataset_tag)
         
         print_and_flush(f"Successfully completed training for {method}")
     except Exception as e:

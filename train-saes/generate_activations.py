@@ -21,6 +21,8 @@ def main():
                         help="A list of one or more layer numbers to process.")
     parser.add_argument("--n_examples", type=int, default=500,
                         help="Number of examples to use for generating activations.")
+    parser.add_argument("--dataset_tag", type=str, default="",
+                        help="Dataset tag appended to the model id in every artifact path (empty for MMLU-Pro)")
     parser.add_argument("--load_in_8bit", action="store_true", default=False,
                         help="Load the model in 8-bit mode to save memory.")
 
@@ -47,7 +49,8 @@ def main():
             n_examples=args.n_examples,
             model=model,
             tokenizer=tokenizer,
-            layer_or_layers=args.layers
+            layer_or_layers=args.layers,
+            dataset_tag=args.dataset_tag
         )
         print("Successfully generated and cached activations.")
     except Exception as e:

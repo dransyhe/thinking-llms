@@ -12,7 +12,7 @@ import pickle
 import time
 import random
 from tqdm import tqdm
-from utils.utils import print_and_flush, chat_batch, convert_numpy_types, NumpyEncoder
+from utils.utils import print_and_flush, chat_batch, convert_numpy_types, NumpyEncoder, artifact_id
 from utils.autograder_prompts import (
     build_cluster_description_prompt,
     build_algo_cluster_description_prompt,
@@ -433,7 +433,7 @@ def get_latent_descriptions(model_id, layer, n_clusters, clustering_method='sae_
     
     return {}
 
-def generate_cluster_descriptions(model_name, cluster_examples_list, evaluator_model, n_trace_examples=3, n_categories_examples=5, algo=False):
+def generate_cluster_descriptions(model_name, cluster_examples_list, evaluator_model, n_trace_examples=3, n_categories_examples=5, algo=False, dataset_tag=""):
     """
     Generate descriptions for multiple clusters in batch.
     
@@ -451,7 +451,7 @@ def generate_cluster_descriptions(model_name, cluster_examples_list, evaluator_m
     if n_trace_examples > 0 and model_name is not None:
         try:
             # Get model identifier for file naming
-            model_id = model_name.split('/')[-1].lower()
+            model_id = artifact_id(model_name, dataset_tag)
             responses_json_path = f"../generate-responses/results/vars/responses_{model_id}.json"
             
             # Load responses
@@ -1558,7 +1558,7 @@ def evaluate_clustering_scoring_metrics(
         "statistics": statistics
     }
 
-def save_clustering_results(model_id, layer, clustering_method, eval_results_by_cluster_size):
+def save_clustering_results(model_id, layer, clustering_method, eval_results_by_cluster_size, dataset_tag=""):
     """
     Save clustering results to a JSON file.
 
@@ -1579,7 +1579,7 @@ def save_clustering_results(model_id, layer, clustering_method, eval_results_by_
         Clustering results for the given model, layer, and clustering method
     """
     # Define results path and load existing data
-    model_short_name = model_id.split("/")[-1].lower()
+    model_short_name = artifact_id(model_id, dataset_tag)
     results_json_path = (
         f"../train-saes/results/vars/{clustering_method}_results_{model_short_name}_layer{layer}.json"
     )

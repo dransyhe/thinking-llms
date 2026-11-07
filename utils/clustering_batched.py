@@ -12,7 +12,7 @@ import time
 import random
 import tempfile
 from openai import OpenAI
-from utils.utils import print_and_flush
+from utils.utils import print_and_flush, artifact_id
 from utils.clustering import (
     parse_json_response,
 )
@@ -179,7 +179,7 @@ def check_batch_status(batch_id):
     return batch.status
 
 
-def generate_cluster_descriptions_batch(model_name, cluster_examples_list, n_trace_examples=3, n_categories_examples=5, model="o4-mini"):
+def generate_cluster_descriptions_batch(model_name, cluster_examples_list, n_trace_examples=3, n_categories_examples=5, model="o4-mini", dataset_tag=""):
     """
     Generate descriptions for multiple clusters using batch API.
     
@@ -198,7 +198,7 @@ def generate_cluster_descriptions_batch(model_name, cluster_examples_list, n_tra
     if n_trace_examples > 0 and model_name is not None:
         try:
             # Get model identifier for file naming
-            model_id = model_name.split('/')[-1].lower()
+            model_id = artifact_id(model_name, dataset_tag)
             responses_json_path = f"../generate-responses/results/vars/responses_{model_id}.json"
             
             # Load responses

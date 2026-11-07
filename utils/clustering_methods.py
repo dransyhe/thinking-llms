@@ -8,7 +8,7 @@ from sklearn.mixture import GaussianMixture
 from sklearn.decomposition import PCA
 import time
 from utils.utils import print_and_flush
-from utils.utils import load_activation_mean
+from utils.utils import load_activation_mean, artifact_id
 from utils.sae import SAE
 
 def clustering_agglomerative(activations, n_clusters, args):
@@ -47,7 +47,7 @@ def clustering_agglomerative(activations, n_clusters, args):
             cluster_centers[i] = np.mean(activations[mask], axis=0)
     
     # Save the clustering model
-    model_id = args.model.split('/')[-1].lower()
+    model_id = artifact_id(args.model, args.dataset_tag)
     os.makedirs('results/vars/agglomerative', exist_ok=True)
     model_save_path = f'results/vars/agglomerative/{model_id}_layer{args.layer}_clusters{n_clusters}.pkl'
     
@@ -100,7 +100,7 @@ def clustering_spherical_kmeans(activations, n_clusters, args):
     cluster_centers = cluster_centers / norms
     
     # Save the clustering model
-    model_id = args.model.split('/')[-1].lower()
+    model_id = artifact_id(args.model, args.dataset_tag)
     os.makedirs('results/vars/spherical_kmeans', exist_ok=True)
     model_save_path = f'results/vars/spherical_kmeans/{model_id}_layer{args.layer}_clusters{n_clusters}.pkl'
     
@@ -206,7 +206,7 @@ def clustering_gmm(activations, n_clusters, args):
     cluster_centers = gmm.means_
     
     # Save the clustering model
-    model_id = args.model.split('/')[-1].lower()
+    model_id = artifact_id(args.model, args.dataset_tag)
     os.makedirs('results/vars/gmm', exist_ok=True)
     model_save_path = f'results/vars/gmm/{model_id}_layer{args.layer}_clusters{n_clusters}.pkl'
     
@@ -265,7 +265,7 @@ def clustering_pca_kmeans(activations, n_clusters, args):
             cluster_centers[i] = np.mean(activations[mask], axis=0)
     
     # Save the clustering model
-    model_id = args.model.split('/')[-1].lower()
+    model_id = artifact_id(args.model, args.dataset_tag)
     os.makedirs('results/vars/pca_kmeans', exist_ok=True)
     model_save_path = f'results/vars/pca_kmeans/{model_id}_layer{args.layer}_clusters{n_clusters}.pkl'
     
@@ -387,7 +387,7 @@ def clustering_pca_gmm(activations, n_clusters, args):
             cluster_centers[i] = np.mean(activations[mask], axis=0)
     
     # Save the clustering model
-    model_id = args.model.split('/')[-1].lower()
+    model_id = artifact_id(args.model, args.dataset_tag)
     os.makedirs('results/vars/pca_gmm', exist_ok=True)
     model_save_path = f'results/vars/pca_gmm/{model_id}_layer{args.layer}_clusters{n_clusters}.pkl'
     
@@ -446,7 +446,7 @@ def clustering_pca_agglomerative(activations, n_clusters, args):
             cluster_centers[i] = np.mean(activations[mask], axis=0)
     
     # Save the clustering model
-    model_id = args.model.split('/')[-1].lower()
+    model_id = artifact_id(args.model, args.dataset_tag)
     os.makedirs('results/vars/pca_agglomerative', exist_ok=True)
     model_save_path = f'results/vars/pca_agglomerative/{model_id}_layer{args.layer}_clusters{n_clusters}.pkl'
     
@@ -614,7 +614,7 @@ def clustering_sae_topk(activations, n_clusters, args, topk=3):
     cluster_centers = cluster_centers / (norms + 1e-8)  # Add small epsilon to avoid division by zero
     
     # Save the SAE model after cluster_labels and cluster_centers are computed
-    model_id = args.model.split('/')[-1].lower()
+    model_id = artifact_id(args.model, args.dataset_tag)
     os.makedirs('results/vars/saes', exist_ok=True)
     sae_save_path = f'results/vars/saes/sae_{model_id}_layer{args.layer}_clusters{n_clusters}.pt'
 

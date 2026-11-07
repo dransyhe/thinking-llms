@@ -34,6 +34,8 @@ parser.add_argument("--n_examples", type=int, default=500,
 parser.add_argument("--clustering_methods", type=str, nargs='+', 
                     default=list(SUPPORTED_CLUSTERING_METHODS),
                     help="Clustering methods to evaluate")
+parser.add_argument("--dataset_tag", type=str, default="",
+                    help="Dataset tag appended to the model id in every artifact path (empty for MMLU-Pro)")
 parser.add_argument("--load_in_8bit", action="store_true", default=False,
                     help="Load model in 8-bit mode")
 parser.add_argument("--n_autograder_examples", type=int, default=200,
@@ -62,7 +64,7 @@ parser.add_argument("--accuracy_target_cluster_percentage", type=float, default=
 args, _ = parser.parse_known_args()
 
 # %% Get model identifier for file naming
-model_id = args.model.split('/')[-1].lower()
+model_id = utils.artifact_id(args.model, args.dataset_tag)
 
 clustering_methods = [method for method in args.clustering_methods if method in SUPPORTED_CLUSTERING_METHODS]
 
@@ -83,7 +85,8 @@ def submit_evaluation_batches():
         args.n_examples,
         model,
         tokenizer,
-        args.layer
+        args.layer,
+        dataset_tag=args.dataset_tag
     )
 
     del model, tokenizer
@@ -502,7 +505,7 @@ def process_evaluation_batches():
         
         # Save results using the existing function
         if eval_results_by_cluster_size:
-            save_clustering_results(args.model, args.layer, method, eval_results_by_cluster_size)
+            save_clustering_results(args.model, args.layer, method, eval_results_by_cluster_size, dataset_tag=args.dataset_tag)
             print_and_flush(f"Saved results for {method}")
         else:
             print_and_flush(f"No results to save for {method}")
@@ -527,7 +530,8 @@ def evaluate_clustering_direct():
         args.n_examples,
         model,
         tokenizer,
-        args.layer
+        args.layer,
+        dataset_tag=args.dataset_tag
     )
 
     del model, tokenizer
@@ -630,7 +634,7 @@ def evaluate_clustering_direct():
         
         # Save results using the existing function
         if eval_results_by_cluster_size:
-            save_clustering_results(args.model, args.layer, method, eval_results_by_cluster_size)
+            save_clustering_results(args.model, args.layer, method, eval_results_by_cluster_size, dataset_tag=args.dataset_tag)
             print_and_flush(f"Saved results for {method}")
         else:
             print_and_flush(f"No results to save for {method}")

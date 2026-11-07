@@ -19,7 +19,9 @@ parser = argparse.ArgumentParser(description="Generate responses from models wit
 parser.add_argument("--model", type=str, default="deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
                     help="Model to generate responses from")
 parser.add_argument("--dataset", type=str, default="TIGER-Lab/MMLU-Pro",
-                    help="Dataset in HuggingFace to generate responses from", choices=["legacy-messages", "TIGER-Lab/MMLU-Pro"])
+                    help="Dataset in HuggingFace to generate responses from", choices=["legacy-messages", "TIGER-Lab/MMLU-Pro", "clrs"])
+parser.add_argument("--dataset_file", type=str, default=None,
+                    help="JSONL of generated problems (required for clrs); its stem tags every output file")
 parser.add_argument("--dataset_split", type=str, default="test",
                     help="Split of dataset to generate responses from")
 parser.add_argument("--max_tokens", type=int, default=1000,
@@ -61,6 +63,9 @@ def get_prompts(tokenizer, messages_list):
     return prompts
 
 def get_messages_from_dataset(dataset_name, rows) -> dict[str, dict[str, str]]:
+    if dataset_name == "clrs":
+        return {row["question_id"]: {"role": "user", "content": row["question"], "category": row["category"],
+                                     "question": row["question"]} for row in rows}
     if dataset_name != "TIGER-Lab/MMLU-Pro":
         raise ValueError(f"Dataset {dataset_name} not supported")
 
@@ -210,7 +215,10 @@ if __name__ == "__main__":
     os.makedirs('results/vars', exist_ok=True)
 
     model_prefix = "base_" if args.is_base_model else ""
-    responses_json_path = f"results/vars/{model_prefix}responses_{model_name.split('/')[-1].lower()}.json"
+    if (args.dataset == "clrs") != (args.dataset_file is not None):
+        raise ValueError("--dataset_file is required for, and only for, --dataset clrs")
+    dataset_tag = utils.dataset_tag_of(args.dataset_file)
+    responses_json_path = f"results/vars/{model_prefix}responses_{utils.artifact_id(model_name, dataset_tag)}.json"
 
     random.seed(args.seed)
 
@@ -226,6 +234,11 @@ if __name__ == "__main__":
                 "question": msg["content"],
             }
         print(f"Processing {len(question_ids)} questions from legacy-messages to generate responses")
+    elif args.dataset == "clrs":
+        with open(args.dataset_file) as f:
+            messages_by_question_id = get_messages_from_dataset(args.dataset, [json.loads(line) for line in f])
+        question_ids = list(messages_by_question_id.keys())
+        print(f"Processing {len(question_ids)} questions from {args.dataset_file} to generate responses")
     else:
         ds = load_dataset(args.dataset)
         rows = ds[args.dataset_split]
